@@ -7,7 +7,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <algorithm>
 #include <iterator>
 
 #include <swmodeltestbase.hxx>
@@ -189,45 +188,17 @@ CPPUNIT_TEST_FIXTURE(Test, testTdf129525)
     save(TestFilter::DOCX);
     xmlDocUniquePtr pXmlDoc = parseExport(u"word/document.xml"_ustr);
     // The point of this test is that the TOC is exported wrapped in w:sdt.
-    CPPUNIT_ASSERT_EQUAL(
-        1, countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[1]"));
+    assertXPath(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtPr/w:docPartObj/w:docPartGallery", "val", u"Table of Contents");
+    assertXPath(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p", 1);
+    assertXPathContent(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p/w:r/w:instrText",
+                       u" TOC \\o \"1-3\" \\h");
 
-    // TEMP DIAGNOSTIC: dump the exported sdt subtree in the failure message so
-    // the real structure of the regenerated TOC is visible in the test log.
-    xmlXPathObjectPtr pSdtObj = getXPathNode(pXmlDoc, "/w:document/w:body/w:sdt");
-    CPPUNIT_ASSERT(pSdtObj);
-    CPPUNIT_ASSERT(pSdtObj->nodesetval && pSdtObj->nodesetval->nodeNr > 0);
-    xmlBufferPtr pBuffer = xmlBufferCreate();
-    xmlNodeDump(pBuffer, pXmlDoc.get(), pSdtObj->nodesetval->nodeTab[0], 0, 1);
-    OString sDump(reinterpret_cast<const char*>(xmlBufferContent(pBuffer)),
-                  std::min(xmlBufferLength(pBuffer), 6000));
-    xmlBufferFree(pBuffer);
-    xmlXPathFreeObject(pSdtObj);
-    CPPUNIT_ASSERT_MESSAGE(sDump.getStr(),
-        1 == countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[2]"));
-
-    // The TOC is scheduled for update on import now, so the page numbers of the
-    // exported field result come from the layout of this process, not from the
-    // stored result. Only check that the entries themselves survived.
-    xmlXPathObjectPtr pXmlObj
-        = getXPathNode(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent//w:t");
-    CPPUNIT_ASSERT(pXmlObj);
-    bool bFoundOverview = false;
-    bool bFoundDescription = false;
-    for (sal_Int32 i = 0; i < static_cast<sal_Int32>(xmlXPathNodeSetGetLength(pXmlObj->nodesetval));
-         ++i)
-    {
-        xmlChar* pContent = xmlNodeGetContent(pXmlObj->nodesetval->nodeTab[i]);
-        OString sText(reinterpret_cast<const char*>(pContent));
-        xmlFree(pContent);
-        if (sText == "Overview")
-            bFoundOverview = true;
-        else if (sText == "More detailed description")
-            bFoundDescription = true;
-    }
-    xmlXPathFreeObject(pXmlObj);
-    CPPUNIT_ASSERT(bFoundOverview);
-    CPPUNIT_ASSERT(bFoundDescription);
+    // The TOC is refreshed on import now. This RTF has no outline-level body
+    // paragraphs - the Overview / "More detailed description" entries only
+    // existed inside the stored field result - so the regenerated field result
+    // is empty: exactly one paragraph holding the field marks. In particular
+    // the stored entries with their stale page numbers must not survive.
+    assertXPath(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent//w:t", 0);
 }
 
 // Related issue tdf#121561: w:sdt/w:sdtContent around TOC
