@@ -71,6 +71,7 @@ jobs:
             --disable-cups \
             --disable-evolution2 \
             --disable-firebird-sdbc \
+            --disable-mariadb-sdbc \
             --disable-postgresql-sdbc \
             --disable-online-update \
             --without-java \
