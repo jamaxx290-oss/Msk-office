@@ -72,7 +72,7 @@ jobs:
             --disable-evolution2 \
             --disable-firebird-sdbc \
             --disable-postgresql-sdbc \
-            --disable-onlineupdate \
+            --disable-online-update \
             --without-java \
             --without-junit \
             --with-parallelism="$(nproc)" \
