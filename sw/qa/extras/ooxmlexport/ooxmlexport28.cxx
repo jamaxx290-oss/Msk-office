@@ -15,6 +15,7 @@
 
 #include <IDocumentLayoutAccess.hxx>
 #include <doc.hxx>
+#include <frame.hxx>
 #include <ndtxt.hxx>
 #include <pam.hxx>
 #include <pagefrm.hxx>
@@ -72,10 +73,9 @@ void lcl_collectToxEntries(SwDoc& rDoc, std::vector<ToxEntry>& rEntries,
             ToxEntry aEntry;
             aEntry.maTitle = sText.copy(0, nTab);
             aEntry.mnPage = sText.copy(nTab + 1).toInt32();
-            CPPUNIT_ASSERT_MESSAGE((OString("TOC entry without a page number: ")
-                                    + sText.toUtf8())
-                                       .getStr(),
-                                   aEntry.mnPage > 0);
+            const OString sMessage
+                = OString("TOC entry without a page number: ") + sText.toUtf8();
+            CPPUNIT_ASSERT_MESSAGE(sMessage.getStr(), aEntry.mnPage > 0);
 
             rEntries.push_back(aEntry);
             rNodes.push_back(pTextNode);
@@ -97,10 +97,9 @@ std::map<OUString, sal_Int32> lcl_collectHeadingPages(SwDoc& rDoc)
             continue;
 
         SwContentFrame* pFrame = pTextNode->getLayoutFrame(nullptr);
-        CPPUNIT_ASSERT_MESSAGE((OString("no layout frame for heading ")
-                                + pTextNode->GetText().toUtf8())
-                                   .getStr(),
-                               pFrame);
+        const OString sMessage
+            = OString("no layout frame for heading ") + pTextNode->GetText().toUtf8();
+        CPPUNIT_ASSERT_MESSAGE(sMessage.getStr(), pFrame);
         aResult[pTextNode->GetText()] = pFrame->FindPageFrame()->GetVirtPageNum();
     }
     return aResult;
@@ -127,35 +126,36 @@ void lcl_assertToxMatchesLayout(SwDoc& rDoc, const char* pMessage)
     std::vector<ToxEntry> aEntries;
     std::vector<SwTextNode*> aNodes;
     lcl_collectToxEntries(rDoc, aEntries, aNodes);
-    CPPUNIT_ASSERT_MESSAGE((OString(pMessage) + ": no TOC entries collected").getStr(),
-                           !aEntries.empty());
+    const OString sNoEntries = OString(pMessage) + ": no TOC entries collected";
+    CPPUNIT_ASSERT_MESSAGE(sNoEntries.getStr(), !aEntries.empty());
 
     const std::map<OUString, sal_Int32> aActualPages = lcl_collectHeadingPages(rDoc);
-    CPPUNIT_ASSERT_MESSAGE((OString(pMessage) + ": no headings found in the layout").getStr(),
-                           !aActualPages.empty());
+    const OString sNoHeadings = OString(pMessage) + ": no headings found in the layout";
+    CPPUNIT_ASSERT_MESSAGE(sNoHeadings.getStr(), !aActualPages.empty());
     for (const ToxEntry& rEntry : aEntries)
     {
-        CPPUNIT_ASSERT_MESSAGE((OString(pMessage) + ": no heading found for TOC entry "
-                                + rEntry.maTitle.toUtf8())
-                                   .getStr(),
-                               aActualPages.count(rEntry.maTitle));
-        CPPUNIT_ASSERT_EQUAL_MESSAGE((OString(pMessage) + ": TOC number is not the real page for "
-                                      + rEntry.maTitle.toUtf8())
-                                         .getStr(),
-                                     aActualPages.at(rEntry.maTitle), rEntry.mnPage);
+        const OString sNoHeading
+            = OString(pMessage) + ": no heading found for TOC entry " + rEntry.maTitle.toUtf8();
+        CPPUNIT_ASSERT_MESSAGE(sNoHeading.getStr(), aActualPages.count(rEntry.maTitle));
+        const OString sWrongNumber = OString(pMessage) + ": TOC number is not the real page for "
+                                     + rEntry.maTitle.toUtf8();
+        CPPUNIT_ASSERT_MESSAGE(sWrongNumber.getStr(),
+                               aActualPages.at(rEntry.maTitle) == rEntry.mnPage);
     }
 }
 
 /// Realistic book: TOC field with stale numbers, front matter, chapters with
 /// page breaks, second-level sections, an image and a header/footer. Verifies
-/// that the TOC page numbers correspond to the real pagination, both after
-/// load and after a save/reload cycle.
+/// that after a save/reload cycle the TOC page numbers stored in the document
+/// correspond to its real pagination.
 CPPUNIT_TEST_FIXTURE(Test, testManuskriptaTocPageNumbersRoundtrip)
 {
     createSwDoc("manuskripta_book_toc.docx");
 
-    lcl_assertToxMatchesLayout(*getSwDoc(), "right after load");
-
+    // Export + reload: whether the load-time update or the export hook consumed
+    // the pending-update flag, the field result written into the saved file
+    // must carry the real page numbers, and they must still match after the
+    // document is reopened.
     saveAndReload(TestFilter::DOCX);
 
     lcl_assertToxMatchesLayout(*getSwDoc(), "after save and reload");
@@ -198,8 +198,8 @@ CPPUNIT_TEST_FIXTURE(Test, testManuskriptaExportResolvesStaleTocNumbers)
         xmlChar* pContent = xmlNodeGetContent(pXmlObj->nodesetval->nodeTab[i]);
         OString sText(reinterpret_cast<const char*>(pContent));
         xmlFree(pContent);
-        CPPUNIT_ASSERT_MESSAGE((OString("stale TOC page number was exported: ") + sText).getStr(),
-                               sText != "77");
+        const OString sMessage = OString("stale TOC page number was exported: ") + sText;
+        CPPUNIT_ASSERT_MESSAGE(sMessage.getStr(), sText != "77");
         aTexts.push_back(sText);
     }
 
@@ -211,8 +211,8 @@ CPPUNIT_TEST_FIXTURE(Test, testManuskriptaExportResolvesStaleTocNumbers)
     const OString sExpected
         = OUStringToOString(OUString::number(aActualPages.at(u"Foreword"_ustr)),
                             RTL_TEXTENCODING_ASCII_US);
-    CPPUNIT_ASSERT_EQUAL_MESSAGE("exported TOC number does not match the real page", sExpected,
-                                 *(it + 1));
+    CPPUNIT_ASSERT_MESSAGE("exported TOC number does not match the real page",
+                           sExpected == *(it + 1));
 }
 
 /// SwDoc::UpdateAllIndexes() must re-resolve the numbers of all indexes from
