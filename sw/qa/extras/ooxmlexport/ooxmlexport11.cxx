@@ -7,6 +7,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <algorithm>
 #include <iterator>
 
 #include <swmodeltestbase.hxx>
@@ -161,7 +162,11 @@ CPPUNIT_TEST_FIXTURE(Test, testTdf121456_tabsOffset)
         uno::Sequence< style::TabStop > stops = getProperty< uno::Sequence<style::TabStop> >(getParagraph( i ), u"ParaTabStops"_ustr);
         CPPUNIT_ASSERT_EQUAL( sal_Int32(1), stops.getLength());
         CPPUNIT_ASSERT_EQUAL( css::style::TabAlign_RIGHT, stops[ 0 ].Alignment );
-        CPPUNIT_ASSERT_EQUAL( sal_Int32(17000), stops[ 0 ].Position );
+        // The TOC is refreshed on DOCX import now, so these TOC entry
+        // paragraphs are regenerated and their right tab stop is derived from
+        // the laid-out page geometry. The twip <-> 1/100 mm conversions lose a
+        // unit, so allow a small tolerance around the authored 17000.
+        CPPUNIT_ASSERT_DOUBLES_EQUAL( double(17000), double(stops[ 0 ].Position), 2.0 );
     }
 }
 
@@ -186,8 +191,20 @@ CPPUNIT_TEST_FIXTURE(Test, testTdf129525)
     // The point of this test is that the TOC is exported wrapped in w:sdt.
     CPPUNIT_ASSERT_EQUAL(
         1, countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[1]"));
-    CPPUNIT_ASSERT_EQUAL(
-        1, countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[2]"));
+
+    // TEMP DIAGNOSTIC: dump the exported sdt subtree in the failure message so
+    // the real structure of the regenerated TOC is visible in the test log.
+    xmlXPathObjectPtr pSdtObj = getXPathNode(pXmlDoc, "/w:document/w:body/w:sdt");
+    CPPUNIT_ASSERT(pSdtObj);
+    CPPUNIT_ASSERT(pSdtObj->nodesetval && pSdtObj->nodesetval->nodeNr > 0);
+    xmlBufferPtr pBuffer = xmlBufferCreate();
+    xmlNodeDump(pBuffer, pXmlDoc.get(), pSdtObj->nodesetval->nodeTab[0], 0, 1);
+    OString sDump(reinterpret_cast<const char*>(xmlBufferContent(pBuffer)),
+                  std::min(xmlBufferLength(pBuffer), 6000));
+    xmlBufferFree(pBuffer);
+    xmlXPathFreeObject(pSdtObj);
+    CPPUNIT_ASSERT_MESSAGE(sDump.getStr(),
+        1 == countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[2]"));
 
     // The TOC is scheduled for update on import now, so the page numbers of the
     // exported field result come from the layout of this process, not from the
