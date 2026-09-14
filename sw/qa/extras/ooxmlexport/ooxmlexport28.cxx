@@ -15,7 +15,7 @@
 
 #include <IDocumentLayoutAccess.hxx>
 #include <doc.hxx>
-#include <frame.hxx>
+#include <cntfrm.hxx>
 #include <ndtxt.hxx>
 #include <pam.hxx>
 #include <pagefrm.hxx>
