@@ -25,6 +25,7 @@
 #include <config_fuzzers.h>
 
 #include <o3tl/sorted_vector.hxx>
+#include <vector>
 
 #include <doc.hxx>
 #include <proofreadingiterator.hxx>
@@ -1352,6 +1353,49 @@ SwNodeIndex SwDoc::AppendDoc(const SwDoc& rSource, sal_uInt16 const nStartPageNu
 
     SAL_INFO( "sw.pageframe", "SwDoc::AppendDoc out)" );
     return aStartAppendIndex;
+}
+
+void SwDoc::UpdateAllIndexes()
+{
+    // Only useful with an actual layout: page numbers are taken from the laid-out
+    // frames, and SwTOXBaseSection::Update() inserts content nodes which need to be
+    // formatted before SwTOXBaseSection::UpdatePageNum() can resolve page numbers.
+    SwRootFrame* pLayout = getIDocumentLayoutAccess().GetCurrentLayout();
+    if (!pLayout)
+        return;
+
+    SwViewShell* pViewShell = getIDocumentLayoutAccess().GetCurrentViewShell();
+    SwEditShell* pEditShell = GetEditShell();
+
+    sw::UndoGuard const undoGuard(GetIDocumentUndoRedo());
+
+    // Collect the indexes first: updating one of them changes the node array.
+    std::vector<SwTOXBaseSection*> aTOXBaseSections;
+    SwSectionFormats& rSectFormats = GetSections();
+    for (size_t i = 0; i < rSectFormats.size(); ++i)
+    {
+        SwSection* pSect = rSectFormats[i]->GetSection();
+        if (!pSect || SectionType::ToxContent != pSect->GetType())
+            continue;
+        auto* pTOXBaseSect = dynamic_cast<SwTOXBaseSection*>(pSect);
+        if (pTOXBaseSect)
+            aTOXBaseSections.push_back(pTOXBaseSect);
+    }
+
+    for (auto* pTOXBaseSect : aTOXBaseSections)
+        pTOXBaseSect->Update(nullptr, pLayout);
+
+    // Updating an index inserts/removes its content nodes, so the layout has to
+    // be calculated again before the page numbers can be resolved from it.
+    // The shell-less case is covered by export filters which only reach this
+    // with a layout that is already calculated.
+    if (pEditShell)
+        pEditShell->CalcLayout();
+    else if (pViewShell)
+        pViewShell->CalcLayout();
+
+    for (auto* pTOXBaseSect : aTOXBaseSections)
+        pTOXBaseSect->UpdatePageNum();
 }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

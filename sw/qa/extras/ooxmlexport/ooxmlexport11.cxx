@@ -183,10 +183,34 @@ CPPUNIT_TEST_FIXTURE(Test, testTdf129525)
 
     save(TestFilter::DOCX);
     xmlDocUniquePtr pXmlDoc = parseExport(u"word/document.xml"_ustr);
-    assertXPathContent(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[1]/w:r[4]/w:t", u"Overview");
-    assertXPathContent(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[1]/w:r[5]/w:t", u"3");
-    assertXPathContent(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[2]/w:r[1]/w:t", u"More detailed description");
-    assertXPathContent(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[2]/w:r[2]/w:t", u"4");
+    // The point of this test is that the TOC is exported wrapped in w:sdt.
+    CPPUNIT_ASSERT_EQUAL(
+        1, countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[1]"));
+    CPPUNIT_ASSERT_EQUAL(
+        1, countXPathNodes(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent/w:p[2]"));
+
+    // The TOC is scheduled for update on import now, so the page numbers of the
+    // exported field result come from the layout of this process, not from the
+    // stored result. Only check that the entries themselves survived.
+    xmlXPathObjectPtr pXmlObj
+        = getXPathNode(pXmlDoc, "/w:document/w:body/w:sdt/w:sdtContent//w:t");
+    CPPUNIT_ASSERT(pXmlObj);
+    bool bFoundOverview = false;
+    bool bFoundDescription = false;
+    for (sal_Int32 i = 0; i < static_cast<sal_Int32>(xmlXPathNodeSetGetLength(pXmlObj->nodesetval));
+         ++i)
+    {
+        xmlChar* pContent = xmlNodeGetContent(pXmlObj->nodesetval->nodeTab[i]);
+        OString sText(reinterpret_cast<const char*>(pContent));
+        xmlFree(pContent);
+        if (sText == "Overview")
+            bFoundOverview = true;
+        else if (sText == "More detailed description")
+            bFoundDescription = true;
+    }
+    xmlXPathFreeObject(pXmlObj);
+    CPPUNIT_ASSERT(bFoundOverview);
+    CPPUNIT_ASSERT(bFoundDescription);
 }
 
 // Related issue tdf#121561: w:sdt/w:sdtContent around TOC

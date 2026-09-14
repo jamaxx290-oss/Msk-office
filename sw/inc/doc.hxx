@@ -988,6 +988,14 @@ public:
     void SetUpdateTOX( bool bFlag )            { mbUpdateTOX = bFlag; }
     bool IsUpdateTOX() const                   { return mbUpdateTOX; }
 
+    /** Update all TOCs: content, layout and page numbers.
+
+      Unlike the views, the headless filters don't get a chance to update pending
+      indexes, so the writer export calls this before writing the stored field
+      results. Requires a layout; does nothing if there is none.
+     */
+    SW_DLLPUBLIC void UpdateAllIndexes();
+
     const OUString& GetTOIAutoMarkURL() const {return msTOIAutoMarkURL;}
     void            SetTOIAutoMarkURL(const OUString& rSet) {msTOIAutoMarkURL = rSet;}
 

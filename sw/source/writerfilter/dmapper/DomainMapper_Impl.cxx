@@ -140,6 +140,8 @@
 #include <unicode/regex.h>
 #include <unotextcursor.hxx>
 #include <unotxdoc.hxx>
+#include <docsh.hxx>
+#include <doc.hxx>
 #include <SwXDocumentSettings.hxx>
 #include <SwXTextDefaults.hxx>
 #include <unobookmark.hxx>
@@ -7663,6 +7665,14 @@ void DomainMapper_Impl::handleToc
 
     if (!xTOC)
         return;
+
+    // The page numbers stored in the imported field result are only as good as
+    // the pagination of whatever tool wrote the file. Once this document gets
+    // laid out here, they are stale; headless consumers never get the view that
+    // would update the pending indexes, so remember to re-resolve the numbers
+    // against the real layout at export time.
+    if (SwDocShell* pDocShell = m_xTextDocument ? m_xTextDocument->GetDocShell() : nullptr)
+        pDocShell->GetDoc()->SetUpdateTOX(true);
 
     xTOC->setPropertyValue(getPropertyName( PROP_TITLE ), uno::Any(aTocTitle));
 

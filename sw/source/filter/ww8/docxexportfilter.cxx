@@ -22,6 +22,7 @@
 #include "docxexport.hxx"
 
 #include <docsh.hxx>
+#include <doc.hxx>
 #include <pam.hxx>
 #include <PostItMgr.hxx>
 #include <unotxdoc.hxx>
@@ -106,6 +107,17 @@ bool DocxExportFilter::exportDocument()
     std::shared_ptr<SwUnoCursor> pCurPam(pDoc->CreateUnoCursor(*aPam.End(), false));
     pCurPam->SetMark();
     *pCurPam->GetPoint() = *aPam.Start();
+
+    // The TOC page numbers stored in the document can be stale after loading it
+    // (e.g. a DOCX written by another tool), and a headless conversion never gets
+    // a view which would update the pending indexes. Refresh them here, so the
+    // exported field results correspond to the pagination of the layout the
+    // export is based on.
+    if (pDoc->IsUpdateTOX())
+    {
+        pDoc->UpdateAllIndexes();
+        pDoc->SetUpdateTOX(false);
+    }
 
     // export the document
     // (in a separate block so that it's destructed before the commit)
