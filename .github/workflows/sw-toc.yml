@@ -76,6 +76,7 @@ jobs:
             --disable-mariadb-sdbc \
             --disable-postgresql-sdbc \
             --disable-online-update \
+            --enable-epm \
             --with-package-format=deb \
             --with-lang=en-US \
             --without-java \
