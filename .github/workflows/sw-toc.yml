@@ -1,5 +1,6 @@
-# Builds the LibreOffice writer stack headless and runs the DOCX TOC
-# page-number tests added for the Manuskripta TOC work.
+# Builds LibreOffice headless, runs the DOCX TOC page-number tests added for
+# the Manuskripta TOC work, and packages the result as installable DEBs so the
+# fixed build can actually be used for document conversion.
 #
 # This repository is a mirror of the LibreOffice core tree; upstream CI runs in
 # Gerrit, so this workflow provides the missing build/test validation on GitHub.
@@ -52,7 +53,7 @@ jobs:
             zlib1g-dev libxml2-dev libxslt1-dev libcurl4-openssl-dev \
             libfreetype-dev libfontconfig1-dev libcairo2-dev libglib2.0-dev \
             libexpat1-dev libicu-dev libgpgme-dev uuid-dev libkrb5-dev \
-            libnspr4-dev libnss3-dev libssl-dev
+            libnspr4-dev libnss3-dev libssl-dev fakeroot
 
       - name: Prepare ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -75,16 +76,29 @@ jobs:
             --disable-mariadb-sdbc \
             --disable-postgresql-sdbc \
             --disable-online-update \
+            --with-package-format=deb \
+            --with-lang=en-US \
             --without-java \
             --without-junit \
             --with-parallelism="$(nproc)" \
             --enable-ccache
 
-      - name: Build and run the TOC tests
+      - name: Run the TOC tests
         run: |
           make -O \
             CppunitTest_sw_ooxmlexport28 \
             CppunitTest_sw_ooxmlexport11
+
+      - name: Build full tree and DEB install set
+        run: make -O
+
+      - name: Upload DEB packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: libreoffice-deb-ubuntu24.04
+          path: workdir/installation/**/DEBS/*.deb
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Collect test logs
         if: always()
